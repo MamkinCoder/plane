@@ -107,7 +107,7 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
         containerClassName="-ml-3"
       />
 
-      <GithubPullRequests workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issueId} title={issue.name} />
+      <GithubPullRequests workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issueId} />
 
       <DescriptionInput
         issueSequenceId={issue.sequence_id}

@@ -3,6 +3,8 @@
 import hashlib
 import os
 import re
+import time
+import uuid
 
 import requests
 from django.core.cache import cache
@@ -16,30 +18,46 @@ from .github_pr_match import matching_pulls
 
 def fetch_pulls(repo, token):
     key = "pr-panel:" + hashlib.sha256(f"{repo}:{token}".encode()).hexdigest()
-    pulls = cache.get(key)
-    if pulls is not None:
-        return pulls
-    pulls = []
-    page = 1
+    lock_key = key + ":lock"
+    deadline = time.monotonic() + 30
+    owner = uuid.uuid4().hex
     while True:
-        response = requests.get(
-            f"https://api.github.com/repos/{repo}/pulls",
-            params={"state": "all", "per_page": 100, "page": page},
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-            timeout=15,
-            allow_redirects=False,
-        )
-        response.raise_for_status()
-        batch = response.json()
-        if not isinstance(batch, list):
-            raise ValueError("Unexpected GitHub response")
-        fields = ("title", "merged_at", "state", "draft", "html_url", "number")
-        pulls.extend({key: pr[key] for key in fields} for pr in batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    cache.set(key, pulls, 60)
-    return pulls
+        pulls = cache.get(key)
+        if pulls is not None:
+            return pulls
+        if cache.add(lock_key, owner, timeout=300):
+            try:
+                pulls = cache.get(key)
+                if pulls is not None:
+                    return pulls
+                pulls = []
+                page = 1
+                while True:
+                    response = requests.get(
+                        f"https://api.github.com/repos/{repo}/pulls",
+                        params={"state": "all", "per_page": 100, "page": page},
+                        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+                        timeout=15,
+                        allow_redirects=False,
+                    )
+                    response.raise_for_status()
+                    batch = response.json()
+                    if not isinstance(batch, list):
+                        raise ValueError("Unexpected GitHub response")
+                    fields = ("title", "merged_at", "state", "draft", "html_url", "number")
+                    pulls.extend({key: pr[key] for key in fields} for pr in batch)
+                    if len(batch) < 100:
+                        break
+                    page += 1
+                cache.set(key, pulls, 5)
+                return pulls
+            finally:
+                if cache.get(lock_key) == owner:
+                    cache.delete(lock_key)
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Timed out waiting for GitHub lookup")
+        time.sleep(0.1)
+
 
 
 class IssueGithubPullRequestsEndpoint(BaseAPIView):
@@ -54,7 +72,8 @@ class IssueGithubPullRequestsEndpoint(BaseAPIView):
         ):
             return Response({"error": "PR panel is not configured correctly."}, status=503)
         try:
-            matches = [pr for repo in repos for pr in matching_pulls(fetch_pulls(repo, token), issue.name, repo)]
-        except (requests.RequestException, ValueError, KeyError):
+            issue_key = f"{issue.project.identifier}-{issue.sequence_id}"
+            matches = [pr for repo in repos for pr in matching_pulls(fetch_pulls(repo, token), issue_key, repo)]
+        except (requests.RequestException, ValueError, KeyError, TimeoutError):
             return Response({"error": "Could not load pull requests from GitHub."}, status=502)
         return Response({"enabled": True, "pulls": matches})

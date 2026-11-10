@@ -41,8 +41,9 @@ def test_any_workspace_and_project_checks_membership_and_returns_matches():
     env = {"PR_PANEL_REPOSITORIES": "a/b", "PR_PANEL_GITHUB_TOKEN": "token"}
     request = Mock()
     issue = Mock()
-    issue.name = "Task title"
-    pull = {"title": "Task title", "state": "open", "draft": False, "merged_at": None,
+    issue.project.identifier = "ASD"
+    issue.sequence_id = 8
+    pull = {"title": "asd-8: Task title", "state": "open", "draft": False, "merged_at": None,
             "html_url": "https://github.com/a/b/pull/1", "number": 1}
     with patch.dict("os.environ", env), \
          patch("plane.app.views.issue.github_pr.get_object_or_404", side_effect=[Mock(), issue]) as lookup, \
@@ -51,3 +52,27 @@ def test_any_workspace_and_project_checks_membership_and_returns_matches():
     assert response.data["pulls"][0]["number"] == 1
     assert lookup.call_args_list[0].kwargs["project_id"] == "any-project"
     assert lookup.call_args_list[0].kwargs["member"] == request.user
+
+
+@pytest.mark.unit
+def test_concurrent_fetches_share_a_five_second_cache():
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+    from django.core.cache.backends.locmem import LocMemCache
+
+    local_cache = LocMemCache("pr-panel-test", {})
+    response = Mock()
+    response.json.return_value = []
+
+    def get(*args, **kwargs):
+        sleep(0.2)
+        return response
+
+    with patch("plane.app.views.issue.github_pr.cache", local_cache), \
+         patch("plane.app.views.issue.github_pr.requests.get", side_effect=get) as request:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: fetch_pulls("a/b", "token"), range(2)))
+        assert results == [[], []]
+        assert request.call_count == 1
+        assert fetch_pulls("a/b", "token") == []
+        assert request.call_count == 1

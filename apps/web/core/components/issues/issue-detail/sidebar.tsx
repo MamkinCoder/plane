@@ -250,7 +250,7 @@ export const IssueDetailsSidebar = observer(function IssueDetailsSidebar(props: 
               />
             </SidebarPropertyListItem>
           </div>
-          <GithubPullRequests workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} title={issue.name} />
+          <GithubPullRequests workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} />
         </div>
       </div>
     </>

@@ -1,14 +1,14 @@
 # Copyright (c) 2023-present Plane Software, Inc. and contributors
 # SPDX-License-Identifier: AGPL-3.0-only
 
-def normalize_title(title):
-    return " ".join(title.split()).casefold()
+import re
 
 
-def matching_pulls(pulls, title, repo):
+def matching_pulls(pulls, issue_key, repo):
+    pattern = re.compile(r"(?<![\w])" + re.escape(issue_key) + r"(?![\w])", re.IGNORECASE)
     matches = []
     for pr in pulls:
-        if normalize_title(pr["title"]) != normalize_title(title):
+        if not pattern.search(pr["title"]):
             continue
         state = "merged" if pr["merged_at"] else "closed" if pr["state"] == "closed" else (
             "draft" if pr["draft"] else "open"
