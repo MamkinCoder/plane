@@ -44,9 +44,6 @@ def fetch_pulls(repo, token):
 
 class IssueGithubPullRequestsEndpoint(BaseAPIView):
     def get(self, request, slug, project_id, issue_id):
-        workspace = os.environ.get("PR_PANEL_WORKSPACE", "")
-        if slug != workspace:
-            return Response({"enabled": False, "pulls": []})
         get_object_or_404(ProjectMember, workspace__slug=slug, project_id=project_id, member=request.user,
                           is_active=True, role__gt=5)
         issue = get_object_or_404(Issue, workspace__slug=slug, project_id=project_id, pk=issue_id)

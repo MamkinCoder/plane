@@ -27,17 +27,8 @@ def test_fetch_pulls_paginates_and_caches_only_display_fields():
 
 
 @pytest.mark.unit
-def test_unconfigured_workspace_does_not_query_github():
-    with patch.dict("os.environ", {"PR_PANEL_WORKSPACE": "workspace"}), \
-         patch("plane.app.views.issue.github_pr.fetch_pulls") as fetch:
-        response = IssueGithubPullRequestsEndpoint().get(Mock(), "other", "project", "issue")
-    assert response.data == {"enabled": False, "pulls": []}
-    fetch.assert_not_called()
-
-
-@pytest.mark.unit
 def test_github_failure_is_reported():
-    env = {"PR_PANEL_WORKSPACE": "workspace", "PR_PANEL_REPOSITORIES": "a/b", "PR_PANEL_GITHUB_TOKEN": "token"}
+    env = {"PR_PANEL_REPOSITORIES": "a/b", "PR_PANEL_GITHUB_TOKEN": "token"}
     with patch.dict("os.environ", env), \
          patch("plane.app.views.issue.github_pr.get_object_or_404", side_effect=[Mock(), Mock(name="task")]), \
          patch("plane.app.views.issue.github_pr.fetch_pulls", side_effect=requests.RequestException):
@@ -46,8 +37,8 @@ def test_github_failure_is_reported():
 
 
 @pytest.mark.unit
-def test_any_project_in_workspace_checks_membership_and_returns_matches():
-    env = {"PR_PANEL_WORKSPACE": "workspace", "PR_PANEL_REPOSITORIES": "a/b", "PR_PANEL_GITHUB_TOKEN": "token"}
+def test_any_workspace_and_project_checks_membership_and_returns_matches():
+    env = {"PR_PANEL_REPOSITORIES": "a/b", "PR_PANEL_GITHUB_TOKEN": "token"}
     request = Mock()
     issue = Mock()
     issue.name = "Task title"

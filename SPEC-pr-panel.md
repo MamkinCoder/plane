@@ -9,3 +9,5 @@ On 2026-11-10 the user removed the project allowlist: the panel applies to all p
 Acceptance: task views display matches and hide the panel for no matches; upstream errors are visible; tokens stay server-side; workspace scope and project membership are enforced; matching/status have tests. Real deployment compatibility and access remain to be verified.
 
 On 2026-11-10 the user requested a GitHub fork and remotely built images. Add a fork-owned GitHub Actions workflow using the upstream API and web Dockerfiles and GitHub Container Registry; leave Plane's upstream publishing workflow unchanged. Publish versioned images from the feature branch. This does not deploy to the running instance.
+
+Later on 2026-11-10 the user also removed the workspace setting. The panel now applies across the instance, still requiring an active project member and a work item within that project. The shared GitHub token therefore exposes matching PR metadata to members of all projects in all workspaces; configure repository access accordingly.
