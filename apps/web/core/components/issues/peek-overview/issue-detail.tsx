@@ -26,6 +26,7 @@ import { IssueTypeSwitcher } from "@/components/issues/issue-type-switcher";
 import { WorkItemVersionService } from "@/services/issue";
 // local components
 import type { TIssueOperations } from "../issue-detail";
+import { GithubPullRequests } from "../issue-detail/github-pull-requests";
 import { IssueParentDetail } from "../issue-detail/parent";
 import { IssueReaction } from "../issue-detail/reactions";
 import { IssueTitleInput } from "../title-input";
@@ -105,6 +106,8 @@ export const PeekOverviewIssueDetails = observer(function PeekOverviewIssueDetai
         value={issue.name}
         containerClassName="-ml-3"
       />
+
+      <GithubPullRequests workspaceSlug={workspaceSlug} projectId={issue.project_id} issueId={issueId} title={issue.name} />
 
       <DescriptionInput
         issueSequenceId={issue.sequence_id}

@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 from django.urls import path
+from plane.app.views.issue.github_pr import IssueGithubPullRequestsEndpoint
 
 from plane.app.views import (
     BulkCreateIssueLabelsEndpoint,
@@ -34,6 +35,11 @@ from plane.app.views import (
 )
 
 urlpatterns = [
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/github-pull-requests/",
+        IssueGithubPullRequestsEndpoint.as_view(),
+        name="issue-github-pull-requests",
+    ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/list/",
         IssueListEndpoint.as_view(),
