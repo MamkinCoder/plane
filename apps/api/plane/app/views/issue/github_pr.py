@@ -17,7 +17,7 @@ from .github_pr_match import matching_pulls
 
 
 def fetch_pulls(repo, token):
-    key = "pr-panel:" + hashlib.sha256(f"{repo}:{token}".encode()).hexdigest()
+    key = "pr-panel-v2:" + hashlib.sha256(f"{repo}:{token}".encode()).hexdigest()
     lock_key = key + ":lock"
     deadline = time.monotonic() + 30
     owner = uuid.uuid4().hex
@@ -45,7 +45,9 @@ def fetch_pulls(repo, token):
                     if not isinstance(batch, list):
                         raise ValueError("Unexpected GitHub response")
                     fields = ("title", "merged_at", "state", "draft", "html_url", "number")
-                    pulls.extend({key: pr[key] for key in fields} for pr in batch)
+                    pulls.extend(
+                        {**{key: pr[key] for key in fields}, "head": {"sha": pr["head"]["sha"]}} for pr in batch
+                    )
                     if len(batch) < 100:
                         break
                     page += 1
@@ -58,6 +60,34 @@ def fetch_pulls(repo, token):
             raise TimeoutError("Timed out waiting for GitHub lookup")
         time.sleep(0.1)
 
+
+def latest_commit_date(repo, number, head_sha, token):
+    key = "pr-panel-commit:" + hashlib.sha256(f"{repo}:{number}:{head_sha}:{token}".encode()).hexdigest()
+    date = cache.get(key)
+    if date is not None:
+        return date
+    owner, name = repo.split("/", 1)
+    try:
+        response = requests.post(
+            "https://api.github.com/graphql",
+            json={
+                "query": "query($owner:String!, $name:String!, $number:Int!) { "
+                         "repository(owner:$owner, name:$name) { pullRequest(number:$number) { "
+                         "commits(last:1) { nodes { commit { committedDate } } } } } }",
+                "variables": {"owner": owner, "name": name, "number": number},
+            },
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+            timeout=15,
+            allow_redirects=False,
+        )
+        response.raise_for_status()
+        result = response.json()
+        date = result["data"]["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["committedDate"]
+    except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
+        return None
+    if date:
+        cache.set(key, date, 86400)
+    return date
 
 
 class IssueGithubPullRequestsEndpoint(BaseAPIView):
@@ -76,4 +106,6 @@ class IssueGithubPullRequestsEndpoint(BaseAPIView):
             matches = [pr for repo in repos for pr in matching_pulls(fetch_pulls(repo, token), issue_key, repo)]
         except (requests.RequestException, ValueError, KeyError, TimeoutError):
             return Response({"error": "Could not load pull requests from GitHub."}, status=502)
+        for pr in matches:
+            pr["latest_commit_at"] = latest_commit_date(pr["repository"], pr["number"], pr.pop("head_sha"), token)
         return Response({"enabled": True, "pulls": matches})

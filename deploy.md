@@ -77,7 +77,7 @@ If your installation uses `-p` / `--project-name`, supply the same value on both
 ## Verify and maintain
 
 1. Confirm login, existing projects, tasks and attachments. Check API, web and migrator logs for errors.
-2. Open a work item such as `ASD-8` and check that a PR whose title contains `ASD-8` or `asd-8:` appears in **GitHub pull requests**. Open its link and check its status. The panel is visible with no matches. It fetches on opening and on manual refresh, with a five-second shared cache; a refresh inside that window can return cached results.
+2. Open a work item such as `ASD-8` and check that a PR whose title contains `ASD-8` or `asd-8:` appears in **GitHub pull requests**. Open its link and check its status and latest commit date. The panel is visible with no matches. It fetches on opening and on manual refresh, with a five-second shared cache; a refresh inside that window can return cached results.
 3. Check a project member and a guest account. Guests cannot fetch PR details. If the panel reports an error, check the API container's configuration, GitHub token access, outbound network and GitHub rate limits.
 4. Retain the backup and prior deployment configuration. If rollback is necessary after database migrations, use the tested restore procedure for the matching database and file backup.
 

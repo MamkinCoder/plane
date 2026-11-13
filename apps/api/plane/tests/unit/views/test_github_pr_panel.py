@@ -11,7 +11,7 @@ from plane.app.views.issue.github_pr import IssueGithubPullRequestsEndpoint, fet
 @pytest.mark.unit
 def test_fetch_pulls_paginates_and_caches_only_display_fields():
     pull = {"title": "A", "state": "open", "draft": False, "merged_at": None,
-            "html_url": "https://github.com/a/b/pull/1", "number": 1, "body": "private"}
+            "html_url": "https://github.com/a/b/pull/1", "number": 1, "head": {"sha": "abc"}, "body": "private"}
     first = Mock()
     first.json.return_value = [pull] * 100
     second = Mock()
@@ -44,12 +44,14 @@ def test_any_workspace_and_project_checks_membership_and_returns_matches():
     issue.project.identifier = "ASD"
     issue.sequence_id = 8
     pull = {"title": "asd-8: Task title", "state": "open", "draft": False, "merged_at": None,
-            "html_url": "https://github.com/a/b/pull/1", "number": 1}
+            "html_url": "https://github.com/a/b/pull/1", "number": 1, "head": {"sha": "abc"}}
     with patch.dict("os.environ", env), \
          patch("plane.app.views.issue.github_pr.get_object_or_404", side_effect=[Mock(), issue]) as lookup, \
-         patch("plane.app.views.issue.github_pr.fetch_pulls", return_value=[pull]):
+         patch("plane.app.views.issue.github_pr.fetch_pulls", return_value=[pull]), \
+         patch("plane.app.views.issue.github_pr.latest_commit_date", return_value="2026-10-25T00:00:00Z"):
         response = IssueGithubPullRequestsEndpoint().get(request, "workspace", "any-project", "issue")
     assert response.data["pulls"][0]["number"] == 1
+    assert response.data["pulls"][0]["latest_commit_at"] == "2026-10-25T00:00:00Z"
     assert lookup.call_args_list[0].kwargs["project_id"] == "any-project"
     assert lookup.call_args_list[0].kwargs["member"] == request.user
 
@@ -76,3 +78,32 @@ def test_concurrent_fetches_share_a_five_second_cache():
         assert request.call_count == 1
         assert fetch_pulls("a/b", "token") == []
         assert request.call_count == 1
+
+
+@pytest.mark.unit
+def test_latest_commit_uses_graphql_and_caches_by_head():
+    from django.core.cache.backends.locmem import LocMemCache
+    from plane.app.views.issue.github_pr import latest_commit_date
+
+    local_cache = LocMemCache("pr-panel-commit-test", {})
+    response = Mock()
+    response.json.return_value = {"data": {"repository": {"pullRequest": {
+        "commits": {"nodes": [{"commit": {"committedDate": "2026-10-25T08:00:00Z"}}]}
+    }}}}
+    with patch("plane.app.views.issue.github_pr.cache", local_cache), \
+         patch("plane.app.views.issue.github_pr.requests.post", return_value=response) as post:
+        assert latest_commit_date("a/b", 1, "sha1", "token") == "2026-10-25T08:00:00Z"
+        assert latest_commit_date("a/b", 1, "sha1", "token") == "2026-10-25T08:00:00Z"
+        assert post.call_count == 1
+        latest_commit_date("a/b", 1, "sha2", "token")
+        assert post.call_count == 2
+
+
+@pytest.mark.unit
+def test_latest_commit_failure_does_not_hide_pull_request():
+    from plane.app.views.issue.github_pr import latest_commit_date
+
+    with patch("plane.app.views.issue.github_pr.cache") as cache, \
+         patch("plane.app.views.issue.github_pr.requests.post", side_effect=requests.RequestException):
+        cache.get.return_value = None
+        assert latest_commit_date("a/b", 1, "sha", "token") is None

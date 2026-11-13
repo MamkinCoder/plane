@@ -7,7 +7,7 @@ import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, Re
 import { API_BASE_URL } from "@plane/constants";
 
 type Status = "draft" | "open" | "closed" | "merged";
-type Pull = { url: string; number: number; repository: string; status: Status };
+type Pull = { url: string; number: number; repository: string; status: Status; latest_commit_at: string | null };
 
 const STATUS = {
   draft: { icon: GitPullRequestDraft, color: "text-[#8b949e]" },
@@ -72,6 +72,13 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
                 <Icon aria-hidden="true" className="size-4" />
                 {pr.status}
               </span>
+              {pr.latest_commit_at && (
+                <time className="shrink-0 text-placeholder" dateTime={pr.latest_commit_at} title="Latest commit">
+                  {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(
+                    new Date(pr.latest_commit_at)
+                  )}
+                </time>
+              )}
             </div>
           );
         })

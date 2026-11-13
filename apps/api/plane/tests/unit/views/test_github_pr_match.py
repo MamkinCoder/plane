@@ -16,7 +16,7 @@ class PullRequestMatchingTest(unittest.TestCase):
     def test_key_boundaries_and_statuses(self):
         def pr(title, state="open", draft=False, merged_at=None):
             return {"title": title, "state": state, "draft": draft, "merged_at": merged_at,
-                    "html_url": "https://github.com/acme/app/pull/1", "number": 1}
+                    "html_url": "https://github.com/acme/app/pull/1", "number": 1, "head": {"sha": "abc"}}
 
         pulls = [pr("ASD-8: Fix login"), pr("[asd-8] Fix", draft=True), pr("Fix asd-8; done", state="closed"),
                  pr("asd-8!", state="closed", merged_at="now"), pr("asd-80: another task"),

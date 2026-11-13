@@ -2,7 +2,7 @@
 
 For rollout instructions, see [deploy.md](deploy.md).
 
-This fork adds a read-only panel to task detail and peek views. It does not change task descriptions, links, or state. It finds PRs whose title contains the task key, such as `ASD-8`, case-insensitively; punctuation around the key is supported and multiple matches are shown. Draft, open, closed and merged status is checked on opening the task and when the refresh button is pressed; the panel stays visible even when no PRs match. PRs are linked to GitHub.
+This fork adds a read-only panel to task detail and peek views. It does not change task descriptions, links, or state. It finds PRs whose title contains the task key, such as `ASD-8`, case-insensitively; punctuation around the key is supported and multiple matches are shown. Draft, open, closed and merged status is checked on opening the task and when the refresh button is pressed; the panel stays visible even when no PRs match. PRs are linked to GitHub and show the latest commit date as day and abbreviated month.
 
 Configure the **API container's environment**, using your deployment's secret mechanism:
 

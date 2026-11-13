@@ -17,3 +17,5 @@ On 2026-11-10 the user replaced title equality with an explicit work-item key (f
 On 2026-11-10 the user changed the refresh flow: always show the panel, check once when a task opens, and provide a manual refresh button. No periodic, focus, or reconnect refresh. A shared five-second cache and per-repository lock deduplicate concurrent lookups. Manual refresh also respects this cache, so a click within five seconds may return the cached result. Keep errors visible and retryable.
 
 On 2026-11-10 the user requested a root deployment guide and publication of the current implementation and images to their fork and GHCR. Document both prebuilt images and source builds, preservation of the existing Plane database and file storage, configuration and verification. Deployment remains the operator's responsibility.
+
+On 2026-11-13 the user requested the latest commit date on each pull request, displayed as day and abbreviated month without a year (for example 25 Oct). Use the PR's latest commit timestamp, not its updated or merged timestamp. If GitHub cannot provide a date, keep showing the PR without one. No extra token permissions or refresh behavior changes.
