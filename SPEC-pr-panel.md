@@ -23,3 +23,5 @@ On 2026-11-13 the user requested the latest commit date on each pull request, di
 On 2026-11-18 the user requested GitHub's review verdict and the count of unresolved inline review threads for each matching PR. Read all thread pages, refresh the review information with the existing five-second cache, and link to Files changed. Keep the PR visible if review metadata is unavailable.
 
 Add a personal New feedback badge per PR for published inline comments and replies. Opening the badge links to the first unseen comment. Mark as seen records the currently displayed comments per Plane account in this browser. Existing comments start unseen. Use the existing refresh flow.
+
+After trying it in the local demo, the user requested removal of the New feedback badge and Mark as seen. Remove the associated GitHub comment lookup. Keep unresolved review threads and place the PR status immediately after the PR link, with the latest commit date aligned right.
