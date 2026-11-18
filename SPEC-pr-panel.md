@@ -21,3 +21,5 @@ On 2026-11-10 the user requested a root deployment guide and publication of the 
 On 2026-11-13 the user requested the latest commit date on each pull request, displayed as day and abbreviated month without a year (for example 25 Oct). Use the PR's latest commit timestamp, not its updated or merged timestamp. If GitHub cannot provide a date, keep showing the PR without one. No extra token permissions or refresh behavior changes.
 
 On 2026-11-18 the user requested GitHub's review verdict and the count of unresolved inline review threads for each matching PR. Read all thread pages, refresh the review information with the existing five-second cache, and link to Files changed. Keep the PR visible if review metadata is unavailable.
+
+Add a personal New feedback badge per PR for published inline comments and replies. Opening the badge links to the first unseen comment. Mark as seen records the currently displayed comments per Plane account in this browser. Existing comments start unseen. Use the existing refresh flow.

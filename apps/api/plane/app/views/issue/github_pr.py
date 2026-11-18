@@ -104,6 +104,38 @@ def pull_request_details(repo, number, head_sha, token):
     return details
 
 
+def pull_request_feedback(repo, number, token):
+    key = "pr-panel-feedback:" + hashlib.sha256(f"{repo}:{number}:{token}".encode()).hexdigest()
+    feedback = cache.get(key)
+    if feedback is not None:
+        return feedback
+    feedback = []
+    page = 1
+    try:
+        while True:
+            response = requests.get(
+                f"https://api.github.com/repos/{repo}/pulls/{number}/comments",
+                params={"per_page": 100, "page": page, "sort": "created", "direction": "asc"},
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+                timeout=15,
+                allow_redirects=False,
+            )
+            response.raise_for_status()
+            comments = response.json()
+            if not isinstance(comments, list):
+                return None
+            feedback.extend(
+                {"id": str(comment["id"]), "url": comment["html_url"]} for comment in comments
+            )
+            if len(comments) < 100:
+                break
+            page += 1
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        return None
+    cache.set(key, feedback, 5)
+    return feedback
+
+
 class IssueGithubPullRequestsEndpoint(BaseAPIView):
     def get(self, request, slug, project_id, issue_id):
         get_object_or_404(ProjectMember, workspace__slug=slug, project_id=project_id, member=request.user,
@@ -121,5 +153,6 @@ class IssueGithubPullRequestsEndpoint(BaseAPIView):
         except (requests.RequestException, ValueError, KeyError, TimeoutError):
             return Response({"error": "Could not load pull requests from GitHub."}, status=502)
         for pr in matches:
+            pr["feedback"] = pull_request_feedback(pr["repository"], pr["number"], token)
             pr.update(pull_request_details(pr["repository"], pr["number"], pr.pop("head_sha"), token))
         return Response({"enabled": True, "pulls": matches})

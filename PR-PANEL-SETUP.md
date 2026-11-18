@@ -22,3 +22,5 @@ Quick matcher check: `python3 apps/api/plane/tests/unit/views/test_github_pr_mat
 ## GitHub image builds
 
 The fork's `Build PR panel images` workflow builds the upstream web and API Dockerfiles for `linux/amd64` and publishes commit-tagged images to GitHub Container Registry. It runs when `codex/pr-panel-1.4.3` is pushed. The workflow can also be run manually from the fork’s default branch. The current image packages are public. The tags contain the full commit SHA so both images can be pinned to the same build.
+
+The New feedback badge counts inline review comments and replies you have yet to mark as seen in Plane. Click the badge to open the first unseen comment on GitHub. Mark as seen applies only to the comments loaded in the panel. Seen status is stored per Plane account in the current browser, independently of GitHub's inbox.

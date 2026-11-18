@@ -48,6 +48,7 @@ def test_any_workspace_and_project_checks_membership_and_returns_matches():
     with patch.dict("os.environ", env), \
          patch("plane.app.views.issue.github_pr.get_object_or_404", side_effect=[Mock(), issue]) as lookup, \
          patch("plane.app.views.issue.github_pr.fetch_pulls", return_value=[pull]), \
+         patch("plane.app.views.issue.github_pr.pull_request_feedback", return_value=[]), \
          patch("plane.app.views.issue.github_pr.pull_request_details",
                return_value={"latest_commit_at": "2026-10-25T00:00:00Z"}):
         response = IssueGithubPullRequestsEndpoint().get(request, "workspace", "any-project", "issue")
@@ -122,3 +123,24 @@ def test_latest_commit_failure_does_not_hide_pull_request():
          patch("plane.app.views.issue.github_pr.requests.post", side_effect=requests.RequestException):
         cache.get.return_value = None
         assert pull_request_details("a/b", 1, "sha", "token") == {}
+
+
+@pytest.mark.unit
+def test_feedback_paginates_without_returning_comment_bodies():
+    from plane.app.views.issue.github_pr import pull_request_feedback
+
+    first, last = Mock(), Mock()
+    first.json.return_value = [
+        {"id": i, "html_url": f"https://github.com/a/b/pull/1#discussion_r{i}", "body": "private"}
+        for i in range(100)
+    ]
+    last.json.return_value = [{"id": 100, "html_url": "https://github.com/a/b/pull/1#discussion_r100"}]
+    with (
+        patch("plane.app.views.issue.github_pr.cache") as cache,
+        patch("plane.app.views.issue.github_pr.requests.get", side_effect=[first, last]) as get,
+    ):
+        cache.get.return_value = None
+        feedback = pull_request_feedback("a/b", 1, "token")
+    assert len(feedback) == 101
+    assert feedback[0] == {"id": "0", "url": "https://github.com/a/b/pull/1#discussion_r0"}
+    assert get.call_args.kwargs["params"]["page"] == 2

@@ -2,10 +2,14 @@
  * Copyright (c) 2023-present Plane Software, Inc. and contributors
  * SPDX-License-Identifier: AGPL-3.0-only
  */
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, RefreshCw } from "lucide-react";
 import { API_BASE_URL } from "@plane/constants";
 
+import { useUser } from "@/hooks/store/user";
+
+type Feedback = { id: string; url: string };
 type Status = "draft" | "open" | "closed" | "merged";
 type Pull = {
   url: string;
@@ -15,6 +19,7 @@ type Pull = {
   latest_commit_at?: string | null;
   review_decision?: keyof typeof REVIEW | null;
   unresolved_threads?: number;
+  feedback?: Feedback[] | null;
 };
 
 const REVIEW = { APPROVED: "Approved", CHANGES_REQUESTED: "Changes requested", REVIEW_REQUIRED: "Awaiting review" };
@@ -29,7 +34,56 @@ type Response = { enabled: boolean; pulls: Pull[] };
 
 type Props = { workspaceSlug: string; projectId: string; issueId: string };
 
+function NewFeedback({ storageKey, feedback }: { storageKey: string; feedback: Feedback[] }) {
+  const [seen, setSeen] = useState<string[]>([]);
+  const [saveError, setSaveError] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+      if (Array.isArray(stored)) setSeen(stored.filter((id): id is string => typeof id === "string"));
+    } catch {
+      // Feedback stays visible when storage is unavailable.
+    }
+  }, [storageKey]);
+
+  const seenIds = new Set(seen);
+  const unseen = feedback.filter((comment) => !seenIds.has(comment.id));
+  if (!unseen.length) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <a
+        href={unseen[0].url}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded-full border border-subtle-1 px-2 py-0.5 font-medium underline"
+      >
+        {unseen.length} new feedback
+      </a>
+      <button
+        type="button"
+        className="underline"
+        onClick={() => {
+          const ids = feedback.map((comment) => comment.id);
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(ids));
+            setSeen(ids);
+            setSaveError(false);
+          } catch {
+            setSaveError(true);
+          }
+        }}
+      >
+        Mark as seen
+      </button>
+      {saveError && <span role="alert">Could not save seen feedback.</span>}
+    </div>
+  );
+}
+
 export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props) {
+  const { data: user } = useUser();
   const url = `${API_BASE_URL}/api/workspaces/${encodeURIComponent(workspaceSlug)}/projects/${projectId}/issues/${issueId}/github-pull-requests/`;
   const { data, error, isValidating, mutate } = useSWR<Response>(
     url,
@@ -73,6 +127,7 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
       ) : (
         data.pulls.map((pr) => {
           const { icon: Icon, color } = STATUS[pr.status];
+          const storageKey = `plane:pr-feedback:${user?.id}:${pr.url}`;
           return (
             <div key={pr.url} className="space-y-1">
               <div className="flex items-center justify-between gap-2">
@@ -102,6 +157,9 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
                   View feedback
                 </a>
               </div>
+              {user?.id && pr.feedback && (
+                <NewFeedback key={storageKey} storageKey={storageKey} feedback={pr.feedback} />
+              )}
             </div>
           );
         })
