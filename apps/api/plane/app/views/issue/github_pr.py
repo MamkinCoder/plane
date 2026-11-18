@@ -61,33 +61,47 @@ def fetch_pulls(repo, token):
         time.sleep(0.1)
 
 
-def latest_commit_date(repo, number, head_sha, token):
-    key = "pr-panel-commit:" + hashlib.sha256(f"{repo}:{number}:{head_sha}:{token}".encode()).hexdigest()
-    date = cache.get(key)
-    if date is not None:
-        return date
+def pull_request_details(repo, number, head_sha, token):
+    key = "pr-panel-details:" + hashlib.sha256(f"{repo}:{number}:{head_sha}:{token}".encode()).hexdigest()
+    details = cache.get(key)
+    if details is not None:
+        return details
     owner, name = repo.split("/", 1)
+    cursor = None
+    unresolved = 0
+    details = {}
     try:
-        response = requests.post(
-            "https://api.github.com/graphql",
-            json={
-                "query": "query($owner:String!, $name:String!, $number:Int!) { "
-                         "repository(owner:$owner, name:$name) { pullRequest(number:$number) { "
-                         "commits(last:1) { nodes { commit { committedDate } } } } } }",
-                "variables": {"owner": owner, "name": name, "number": number},
-            },
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-            timeout=15,
-            allow_redirects=False,
-        )
-        response.raise_for_status()
-        result = response.json()
-        date = result["data"]["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["committedDate"]
+        while True:
+            response = requests.post(
+                "https://api.github.com/graphql",
+                json={
+                    "query": "query($owner:String!, $name:String!, $number:Int!, $cursor:String) { "
+                    "repository(owner:$owner, name:$name) { pullRequest(number:$number) { "
+                    "reviewDecision commits(last:1) { nodes { commit { committedDate } } } "
+                    "reviewThreads(first:100, after:$cursor) { "
+                    "nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }",
+                    "variables": {"owner": owner, "name": name, "number": number, "cursor": cursor},
+                },
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+                timeout=15,
+                allow_redirects=False,
+            )
+            response.raise_for_status()
+            pull = response.json()["data"]["repository"]["pullRequest"]
+            if cursor is None:
+                commits = (pull.get("commits") or {}).get("nodes") or []
+                details["latest_commit_at"] = commits[0]["commit"]["committedDate"] if commits else None
+                details["review_decision"] = pull.get("reviewDecision")
+            threads = pull["reviewThreads"]
+            unresolved += sum(not thread["isResolved"] for thread in threads["nodes"])
+            if not threads["pageInfo"]["hasNextPage"]:
+                break
+            cursor = threads["pageInfo"]["endCursor"]
+        details["unresolved_threads"] = unresolved
     except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
-        return None
-    if date:
-        cache.set(key, date, 86400)
-    return date
+        return details
+    cache.set(key, details, 5)
+    return details
 
 
 class IssueGithubPullRequestsEndpoint(BaseAPIView):
@@ -107,5 +121,5 @@ class IssueGithubPullRequestsEndpoint(BaseAPIView):
         except (requests.RequestException, ValueError, KeyError, TimeoutError):
             return Response({"error": "Could not load pull requests from GitHub."}, status=502)
         for pr in matches:
-            pr["latest_commit_at"] = latest_commit_date(pr["repository"], pr["number"], pr.pop("head_sha"), token)
+            pr.update(pull_request_details(pr["repository"], pr["number"], pr.pop("head_sha"), token))
         return Response({"enabled": True, "pulls": matches})

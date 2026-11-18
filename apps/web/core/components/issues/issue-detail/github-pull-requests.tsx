@@ -7,7 +7,17 @@ import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, Re
 import { API_BASE_URL } from "@plane/constants";
 
 type Status = "draft" | "open" | "closed" | "merged";
-type Pull = { url: string; number: number; repository: string; status: Status; latest_commit_at: string | null };
+type Pull = {
+  url: string;
+  number: number;
+  repository: string;
+  status: Status;
+  latest_commit_at?: string | null;
+  review_decision?: keyof typeof REVIEW | null;
+  unresolved_threads?: number;
+};
+
+const REVIEW = { APPROVED: "Approved", CHANGES_REQUESTED: "Changes requested", REVIEW_REQUIRED: "Awaiting review" };
 
 const STATUS = {
   draft: { icon: GitPullRequestDraft, color: "text-[#8b949e]" },
@@ -64,21 +74,34 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
         data.pulls.map((pr) => {
           const { icon: Icon, color } = STATUS[pr.status];
           return (
-            <div key={pr.url} className="flex items-center justify-between gap-2">
-              <a className="truncate underline" href={pr.url} target="_blank" rel="noreferrer">
-                {pr.repository.split("/").pop()}#{pr.number}
-              </a>
-              <span className={`flex shrink-0 items-center gap-1 capitalize ${color}`}>
-                <Icon aria-hidden="true" className="size-4" />
-                {pr.status}
-              </span>
-              {pr.latest_commit_at && (
-                <time className="shrink-0 text-placeholder" dateTime={pr.latest_commit_at} title="Latest commit">
-                  {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(
-                    new Date(pr.latest_commit_at)
-                  )}
-                </time>
-              )}
+            <div key={pr.url} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <a className="truncate underline" href={pr.url} target="_blank" rel="noreferrer">
+                  {pr.repository.split("/").pop()}#{pr.number}
+                </a>
+                <span className={`flex shrink-0 items-center gap-1 capitalize ${color}`}>
+                  <Icon aria-hidden="true" className="size-4" />
+                  {pr.status}
+                </span>
+                {pr.latest_commit_at && (
+                  <time className="shrink-0 text-placeholder" dateTime={pr.latest_commit_at} title="Latest commit">
+                    {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(
+                      new Date(pr.latest_commit_at)
+                    )}
+                  </time>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 text-placeholder">
+                {pr.review_decision && <span>{REVIEW[pr.review_decision]}</span>}
+                {pr.unresolved_threads !== undefined && (
+                  <span>
+                    {pr.unresolved_threads} unresolved {pr.unresolved_threads === 1 ? "thread" : "threads"}
+                  </span>
+                )}
+                <a href={pr.url + "/files"} target="_blank" rel="noreferrer" className="underline">
+                  View feedback
+                </a>
+              </div>
             </div>
           );
         })

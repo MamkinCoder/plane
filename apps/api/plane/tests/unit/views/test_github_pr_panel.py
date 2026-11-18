@@ -48,7 +48,8 @@ def test_any_workspace_and_project_checks_membership_and_returns_matches():
     with patch.dict("os.environ", env), \
          patch("plane.app.views.issue.github_pr.get_object_or_404", side_effect=[Mock(), issue]) as lookup, \
          patch("plane.app.views.issue.github_pr.fetch_pulls", return_value=[pull]), \
-         patch("plane.app.views.issue.github_pr.latest_commit_date", return_value="2026-10-25T00:00:00Z"):
+         patch("plane.app.views.issue.github_pr.pull_request_details",
+               return_value={"latest_commit_at": "2026-10-25T00:00:00Z"}):
         response = IssueGithubPullRequestsEndpoint().get(request, "workspace", "any-project", "issue")
     assert response.data["pulls"][0]["number"] == 1
     assert response.data["pulls"][0]["latest_commit_at"] == "2026-10-25T00:00:00Z"
@@ -81,29 +82,43 @@ def test_concurrent_fetches_share_a_five_second_cache():
 
 
 @pytest.mark.unit
-def test_latest_commit_uses_graphql_and_caches_by_head():
+def test_review_details_paginate_and_cache():
     from django.core.cache.backends.locmem import LocMemCache
-    from plane.app.views.issue.github_pr import latest_commit_date
+    from plane.app.views.issue.github_pr import pull_request_details
 
     local_cache = LocMemCache("pr-panel-commit-test", {})
     response = Mock()
     response.json.return_value = {"data": {"repository": {"pullRequest": {
         "commits": {"nodes": [{"commit": {"committedDate": "2026-10-25T08:00:00Z"}}]}
     }}}}
+    pull = response.json.return_value["data"]["repository"]["pullRequest"]
+    pull["reviewDecision"] = "CHANGES_REQUESTED"
+    pull["reviewThreads"] = {
+        "nodes": [{"isResolved": False}, {"isResolved": True}],
+        "pageInfo": {"hasNextPage": True, "endCursor": "next"},
+    }
+    last = Mock()
+    last.json.return_value = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+        "nodes": [{"isResolved": False}], "pageInfo": {"hasNextPage": False},
+    }}}}}
     with patch("plane.app.views.issue.github_pr.cache", local_cache), \
-         patch("plane.app.views.issue.github_pr.requests.post", return_value=response) as post:
-        assert latest_commit_date("a/b", 1, "sha1", "token") == "2026-10-25T08:00:00Z"
-        assert latest_commit_date("a/b", 1, "sha1", "token") == "2026-10-25T08:00:00Z"
-        assert post.call_count == 1
-        latest_commit_date("a/b", 1, "sha2", "token")
+         patch("plane.app.views.issue.github_pr.requests.post", side_effect=[response, last]) as post:
+        details = pull_request_details("a/b", 1, "sha1", "token")
+        assert details == {
+            "latest_commit_at": "2026-10-25T08:00:00Z",
+            "review_decision": "CHANGES_REQUESTED",
+            "unresolved_threads": 2,
+        }
+        assert post.call_args.kwargs["json"]["variables"]["cursor"] == "next"
+        assert pull_request_details("a/b", 1, "sha1", "token") == details
         assert post.call_count == 2
 
 
 @pytest.mark.unit
 def test_latest_commit_failure_does_not_hide_pull_request():
-    from plane.app.views.issue.github_pr import latest_commit_date
+    from plane.app.views.issue.github_pr import pull_request_details
 
     with patch("plane.app.views.issue.github_pr.cache") as cache, \
          patch("plane.app.views.issue.github_pr.requests.post", side_effect=requests.RequestException):
         cache.get.return_value = None
-        assert latest_commit_date("a/b", 1, "sha", "token") is None
+        assert pull_request_details("a/b", 1, "sha", "token") == {}
