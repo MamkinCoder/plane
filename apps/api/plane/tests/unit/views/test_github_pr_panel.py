@@ -94,12 +94,13 @@ def test_review_details_paginate_and_cache():
     pull = response.json.return_value["data"]["repository"]["pullRequest"]
     pull["reviewDecision"] = "CHANGES_REQUESTED"
     pull["reviewThreads"] = {
-        "nodes": [{"isResolved": False}, {"isResolved": True}],
+        "nodes": [{"isResolved": True}, {"isResolved": False, "comments": {"nodes": []}}],
         "pageInfo": {"hasNextPage": True, "endCursor": "next"},
     }
     last = Mock()
     last.json.return_value = {"data": {"repository": {"pullRequest": {"reviewThreads": {
-        "nodes": [{"isResolved": False}], "pageInfo": {"hasNextPage": False},
+        "nodes": [{"isResolved": False, "comments": {"nodes": [{"url": "https://github.com/a/b/pull/1#discussion_r1"}]}}],
+        "pageInfo": {"hasNextPage": False},
     }}}}}
     with patch("plane.app.views.issue.github_pr.cache", local_cache), \
          patch("plane.app.views.issue.github_pr.requests.post", side_effect=[response, last]) as post:
@@ -108,6 +109,7 @@ def test_review_details_paginate_and_cache():
             "latest_commit_at": "2026-10-25T08:00:00Z",
             "review_decision": "CHANGES_REQUESTED",
             "unresolved_threads": 2,
+            "first_unresolved_url": "https://github.com/a/b/pull/1#discussion_r1",
         }
         assert post.call_args.kwargs["json"]["variables"]["cursor"] == "next"
         assert pull_request_details("a/b", 1, "sha1", "token") == details

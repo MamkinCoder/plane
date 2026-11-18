@@ -15,6 +15,7 @@ type Pull = {
   latest_commit_at?: string | null;
   review_decision?: keyof typeof REVIEW | null;
   unresolved_threads?: number;
+  first_unresolved_url?: string | null;
 };
 
 const REVIEW = { APPROVED: "Approved", CHANGES_REQUESTED: "Changes requested", REVIEW_REQUIRED: "Awaiting review" };
@@ -73,6 +74,7 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
       ) : (
         data.pulls.map((pr) => {
           const { icon: Icon, color } = STATUS[pr.status];
+          const threadCount = `${pr.unresolved_threads} unresolved ${pr.unresolved_threads === 1 ? "thread" : "threads"}`;
           return (
             <div key={pr.url} className="space-y-1">
               <div className="flex items-center gap-2">
@@ -97,14 +99,14 @@ export function GithubPullRequests({ workspaceSlug, projectId, issueId }: Props)
               </div>
               <div className="flex flex-wrap items-center justify-between gap-x-2 text-placeholder">
                 {pr.review_decision && <span>{REVIEW[pr.review_decision]}</span>}
-                {pr.unresolved_threads !== undefined && (
-                  <span>
-                    {pr.unresolved_threads} unresolved {pr.unresolved_threads === 1 ? "thread" : "threads"}
-                  </span>
-                )}
-                <a href={pr.url + "/files"} target="_blank" rel="noreferrer" className="underline">
-                  View feedback
-                </a>
+                {pr.unresolved_threads !== undefined &&
+                  (pr.unresolved_threads > 0 && pr.first_unresolved_url ? (
+                    <a href={pr.first_unresolved_url} target="_blank" rel="noreferrer" className="underline">
+                      {threadCount}
+                    </a>
+                  ) : (
+                    <span>{threadCount}</span>
+                  ))}
               </div>
             </div>
           );

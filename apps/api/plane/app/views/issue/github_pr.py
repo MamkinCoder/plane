@@ -69,6 +69,7 @@ def pull_request_details(repo, number, head_sha, token):
     owner, name = repo.split("/", 1)
     cursor = None
     unresolved = 0
+    first_unresolved_url = None
     details = {}
     try:
         while True:
@@ -79,7 +80,8 @@ def pull_request_details(repo, number, head_sha, token):
                     "repository(owner:$owner, name:$name) { pullRequest(number:$number) { "
                     "reviewDecision commits(last:1) { nodes { commit { committedDate } } } "
                     "reviewThreads(first:100, after:$cursor) { "
-                    "nodes { isResolved } pageInfo { hasNextPage endCursor } } } } }",
+                    "nodes { isResolved comments(first:1) { nodes { url } } } "
+                    "pageInfo { hasNextPage endCursor } } } } }",
                     "variables": {"owner": owner, "name": name, "number": number, "cursor": cursor},
                 },
                 headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
@@ -93,11 +95,18 @@ def pull_request_details(repo, number, head_sha, token):
                 details["latest_commit_at"] = commits[0]["commit"]["committedDate"] if commits else None
                 details["review_decision"] = pull.get("reviewDecision")
             threads = pull["reviewThreads"]
-            unresolved += sum(not thread["isResolved"] for thread in threads["nodes"])
+            for thread in threads["nodes"]:
+                if thread["isResolved"]:
+                    continue
+                unresolved += 1
+                comments = thread["comments"]["nodes"]
+                if first_unresolved_url is None and comments:
+                    first_unresolved_url = comments[0]["url"]
             if not threads["pageInfo"]["hasNextPage"]:
                 break
             cursor = threads["pageInfo"]["endCursor"]
         details["unresolved_threads"] = unresolved
+        details["first_unresolved_url"] = first_unresolved_url
     except (requests.RequestException, ValueError, KeyError, IndexError, TypeError):
         return details
     cache.set(key, details, 5)
